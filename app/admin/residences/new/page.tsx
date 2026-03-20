@@ -8,7 +8,8 @@ const TYPE_OPTIONS    = ["Ultra Luxury", "Premium", "New Launch"];
 const STATUS_OPTIONS  = ["Ready to Move", "Accepting Expressions", "Limited Units", "Sold Out", "New Launch", "Enquire Now"];
 const BEDS_OPTIONS    = ["1–2 BHK", "1–3 BHK", "2–4 BHK", "3–5 BHK", "4–5 BHK", "4–6 BHK", "1–3 Bed", "Villas & High-rise"];
 
-const EMPTY: Omit<CreateResidenceInput, "imageId" | "featured"> = {
+// ✅ order now works — it is added to CreateResidenceInput in residenceService.ts
+const EMPTY: Omit<CreateResidenceInput, "imageId"> = {
   name:     "",
   location: "",
   type:     "",
@@ -25,15 +26,15 @@ type SubmitState = "idle" | "uploading" | "saving" | "success" | "error";
    FORM
 ══════════════════════════════════════════ */
 export default function ResidenceForm() {
-  const [form,       setForm]       = useState(EMPTY);
-  const [imageFile,  setImageFile]  = useState<File | null>(null);
-  const [preview,    setPreview]    = useState<string | null>(null);
+  const [form,        setForm]        = useState(EMPTY);
+  const [imageFile,   setImageFile]   = useState<File | null>(null);
+  const [preview,     setPreview]     = useState<string | null>(null);
   const [submitState, setSubmitState] = useState<SubmitState>("idle");
-  const [errorMsg,   setErrorMsg]   = useState("");
+  const [errorMsg,    setErrorMsg]    = useState("");
   const fileRef = useRef<HTMLInputElement>(null);
 
   /* ── field helpers ── */
-  const set = (key: keyof typeof EMPTY, value: string | boolean | number) =>
+  const set = (key: keyof typeof EMPTY, value: string | number) =>
     setForm(prev => ({ ...prev, [key]: value }));
 
   const handleImage = (e: ChangeEvent<HTMLInputElement>) => {
@@ -70,13 +71,9 @@ export default function ResidenceForm() {
     if (err) { setErrorMsg(err); return; }
 
     try {
-      if (imageFile) {
-        setSubmitState("uploading");
-      } else {
-        setSubmitState("saving");
-      }
+      setSubmitState(imageFile ? "uploading" : "saving");
 
-      await residenceService.createResidence({ ...form, featured: false }, imageFile ?? undefined);
+      await residenceService.createResidence({ ...form }, imageFile ?? undefined);
 
       setSubmitState("success");
       setForm(EMPTY);
@@ -84,11 +81,11 @@ export default function ResidenceForm() {
       setPreview(null);
       if (fileRef.current) fileRef.current.value = "";
 
-      // reset to idle after 3 s
       setTimeout(() => setSubmitState("idle"), 3000);
-    } catch (err: any) {
+    } catch (err: unknown) {
       setSubmitState("error");
-      setErrorMsg(err?.message ?? "Something went wrong. Please try again.");
+      const message = err instanceof Error ? err.message : "Something went wrong. Please try again.";
+      setErrorMsg(message);
     }
   };
 
@@ -151,68 +148,37 @@ export default function ResidenceForm() {
           {/* ── Row: Name + Location ── */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
             <Field label="Property Name *">
-              <Input
-                value={form.name}
-                onChange={v => set("name", v)}
-                placeholder="e.g. World One"
-              />
+              <Input value={form.name}     onChange={v => set("name", v)}     placeholder="e.g. World One" />
             </Field>
             <Field label="Location *">
-              <Input
-                value={form.location}
-                onChange={v => set("location", v)}
-                placeholder="e.g. Worli Sea Face, Mumbai"
-              />
+              <Input value={form.location} onChange={v => set("location", v)} placeholder="e.g. Worli Sea Face, Mumbai" />
             </Field>
           </div>
 
           {/* ── Row: Type + Status ── */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
             <Field label="Type *">
-              <Select
-                value={form.type}
-                onChange={v => set("type", v)}
-                options={TYPE_OPTIONS}
-                placeholder="Select type"
-              />
+              <Select value={form.type}   onChange={v => set("type", v)}   options={TYPE_OPTIONS}   placeholder="Select type" />
             </Field>
             <Field label="Status *">
-              <Select
-                value={form.status}
-                onChange={v => set("status", v)}
-                options={STATUS_OPTIONS}
-                placeholder="Select status"
-              />
+              <Select value={form.status} onChange={v => set("status", v)} options={STATUS_OPTIONS} placeholder="Select status" />
             </Field>
           </div>
 
           {/* ── Row: Price + Beds ── */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
             <Field label="Starting Price *">
-              <Input
-                value={form.price}
-                onChange={v => set("price", v)}
-                placeholder="e.g. ₹ 12 Cr+"
-              />
+              <Input value={form.price} onChange={v => set("price", v)} placeholder="e.g. ₹ 12 Cr+" />
             </Field>
             <Field label="Configuration *">
-              <Select
-                value={form.beds}
-                onChange={v => set("beds", v)}
-                options={BEDS_OPTIONS}
-                placeholder="Select config"
-              />
+              <Select value={form.beds} onChange={v => set("beds", v)} options={BEDS_OPTIONS} placeholder="Select config" />
             </Field>
           </div>
 
-          {/* ── Row: Floors + Order ── */}
+          {/* ── Row: Floors + Order ── ✅ Order is back */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
             <Field label="Floors *">
-              <Input
-                value={form.floors}
-                onChange={v => set("floors", v)}
-                placeholder="e.g. 117 Floors"
-              />
+              <Input value={form.floors} onChange={v => set("floors", v)} placeholder="e.g. 117 Floors" />
             </Field>
             <Field label="Display Order">
               <input
@@ -223,6 +189,7 @@ export default function ResidenceForm() {
                 className="w-full border border-[#B8952A]/20 focus:border-[#B8952A]/55 px-4 py-3.5 text-[#1C1610]/75 text-[11px] tracking-wider font-light outline-none transition-colors duration-300"
                 style={{ background: "rgba(255,255,255,0.7)", fontFamily: "'Montserrat', sans-serif" }}
               />
+              <p className="text-[#1C1610]/25 text-[9px] font-light mt-1.5">Controls sort order on /residences</p>
             </Field>
           </div>
 
@@ -300,7 +267,6 @@ export default function ResidenceForm() {
 }
 
 /* ── Small shared sub-components ── */
-
 function Label({ children }: { children: React.ReactNode }) {
   return (
     <label className="text-[#1C1610]/45 text-[8px] tracking-[0.45em] uppercase font-light block mb-2">
@@ -318,14 +284,8 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
   );
 }
 
-function Input({
-  value,
-  onChange,
-  placeholder,
-}: {
-  value: string;
-  onChange: (v: string) => void;
-  placeholder?: string;
+function Input({ value, onChange, placeholder }: {
+  value: string; onChange: (v: string) => void; placeholder?: string;
 }) {
   return (
     <input
@@ -339,16 +299,8 @@ function Input({
   );
 }
 
-function Select({
-  value,
-  onChange,
-  options,
-  placeholder,
-}: {
-  value: string;
-  onChange: (v: string) => void;
-  options: string[];
-  placeholder: string;
+function Select({ value, onChange, options, placeholder }: {
+  value: string; onChange: (v: string) => void; options: string[]; placeholder: string;
 }) {
   return (
     <select

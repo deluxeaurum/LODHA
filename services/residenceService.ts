@@ -5,12 +5,13 @@ import { config } from "@/lib/config";
 
 /* ─────────────────────────────────────────────
    FIELD SETS — match Appwrite collection exactly
+   ✅ "order" added — exists in Appwrite collection
 ───────────────────────────────────────────── */
 const RESIDENCE_FIELDS = [
   "$id", "$createdAt", "$updatedAt",
   "name", "location", "type",
   "beds", "price", "floors",
-  "status", "imageId",
+  "status", "imageId", "order",  // ✅ order added
 ];
 
 /* ─────────────────────────────────────────────
@@ -26,6 +27,7 @@ export interface Residence {
   floors:      string;
   status:      string;
   imageId:     string;
+  order:       number;   // ✅ order added
   $createdAt?: string;
   $updatedAt?: string;
 }
@@ -39,6 +41,7 @@ export type CreateResidenceInput = {
   floors:   string;
   status:   string;
   imageId?: string;
+  order?:   number;   // ✅ order added — optional so old code still works
 };
 
 export type UpdateResidenceInput = Partial<CreateResidenceInput>;
@@ -54,18 +57,19 @@ export class ResidenceService {
     const res = await databases.listDocuments(
       config.databaseId,
       config.residenceCollectionId,
-      [Query.select(RESIDENCE_FIELDS), Query.limit(100)]
+      [Query.select(RESIDENCE_FIELDS), Query.limit(100), Query.orderAsc("order")]  // ✅ sorted by order
     );
     return res.documents as unknown as Residence[];
   }
 
   async getResidenceById(id: string): Promise<Residence | null> {
     if (!id) return null;
-    const doc = await databases.getDocument({
-      databaseId: config.databaseId,
-      collectionId: config.residenceCollectionId,
-      documentId: id,
-    });
+    // ✅ FIX: positional args, not object
+    const doc = await databases.getDocument(
+      config.databaseId,
+      config.residenceCollectionId,
+      id
+    );
     return doc as unknown as Residence;
   }
 
@@ -88,6 +92,7 @@ export class ResidenceService {
     if (status)      queries.push(Query.equal("status", status));
     if (searchQuery) queries.push(Query.search("name", searchQuery));
 
+    queries.push(Query.orderAsc("order"));  // ✅ sorted by order
     queries.push(Query.limit(limit));
     queries.push(Query.offset(offset));
 
@@ -128,6 +133,7 @@ export class ResidenceService {
         price:    data.price,
         floors:   data.floors,
         status:   data.status,
+        order:    data.order ?? 0,   // ✅ order saved, defaults to 0
         imageId,
       }
     );
@@ -140,13 +146,15 @@ export class ResidenceService {
   async updateResidence(
     id: string,
     updates: UpdateResidenceInput,
-    newImageFile?: File
+    newImageFile?: File,
+    oldImageId?: string   // ✅ FIX: separate param for old image to delete
   ): Promise<Residence> {
     const processed: Record<string, unknown> = { ...updates };
 
     if (newImageFile) {
-      if (updates.imageId) {
-        await storage.deleteFile(config.residenceBucketId, updates.imageId);
+      // ✅ FIX: delete old image using oldImageId param, not updates.imageId
+      if (oldImageId) {
+        await storage.deleteFile(config.residenceBucketId, oldImageId);
       }
       const uploaded = await storage.createFile(
         config.residenceBucketId,
